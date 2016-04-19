@@ -1,0 +1,92 @@
+[32m;; download patch file https://github.com/fkanehiro/hrpsys-base/pull/978.diff[0m
+[33m
+diff --git a/python/rtm.py b/python/rtm.py
+index c36bf47..1239c83 100644
+--- a/python/rtm.py
++++ b/python/rtm.py
+@@ -538,7 +538,7 @@ def connectPorts(outP, inPs, subscription="flush", dataflow="Push", bufferlength
+             print('[rtm.py] \033[31m   Failed to connect %s to %s(%s)\033[0m' % \
+                   (outP.get_port_profile().name, inP, inPs))
+             continue
+-        if isConnected(outP, inP) == True and False:
++        if isConnected(outP, inP) == True:
+             print('[rtm.py]      %s and %s are already connected' % \
+                   (outP.get_port_profile().name, inP.get_port_profile().name))
+             continue
+diff --git a/test/test-hrpsysconf.py b/test/test-hrpsysconf.py
+index a84e360..aa501e5 100755
+--- a/test/test-hrpsysconf.py
++++ b/test/test-hrpsysconf.py
+@@ -23,12 +23,29 @@ def init(self, robotname="SampleRobot(Robot)0", url=""):
+ 
+ class TestHrpsysConfig(unittest.TestCase):
+     global h
++    rh = None
++    seq = None
+ 
+     def test_import_waitinput(self):
+         # https://github.com/start-jsk/rtmros_hironx/blob/groovy-devel/hironx_ros_bridge/src/hironx_ros_bridge/hironx_client.py
+         from waitInput import waitInputConfirm, waitInputSelect
+         self.assertTrue(True)
+ 
++    def test_createcomp(self):
++        global h
++        self.seq = h.createComp("SequencePlayer",'seq')[0]
++
++    def test_connectcomp(self):
++        global h
++        if self.seq == None or self.rh == None:
++            self.test_createcomp()
++        connectPorts(self.rh.port("q"), self.seq.port("qInit"))
++        # check number of connection
++        assert(len(self.seq.port("qInit").get_connector_profiles()) == 1)
++        # check do not connect again if already connected for https://github.com/fkanehiro/hrpsys-base/issues/979
++        connectPorts(self.rh.port("q"), self.seq.port("qInit"))
++        assert(len(self.seq.port("qInit").get_connector_profiles()) == 1)
++
+     def test_findcomp(self):
+         global h
+         h.findComps()
+@@ -46,6 +63,13 @@ def setUp(self):
+             rtm.nsport = args.port
+         h = SampleHrpsysConfigurator()
+ 
++        h.waitForRTCManager()
++        # look for name
++        for c in h.ms.get_components():
++            if '(Robot)' in c.name() or 'RobotHardware' in c.name():
++                h.waitForRobotHardware(c.name())  # get robot hardware name
++                break;
++        self.rh = h.rh
+ 
+ #unittest.main()
+ if __name__ == '__main__':
+[0m
+[32msudo patch -fN -p2 < /tmp/20293.patch[0m
+checking file rtm.py
+can't find file to patch at input line 18
+Perhaps you used the wrong -p or --strip option?
+The text leading up to this was:
+--------------------------
+|diff --git a/test/test-hrpsysconf.py b/test/test-hrpsysconf.py
+|index a84e360..aa501e5 100755
+|--- a/test/test-hrpsysconf.py
+|+++ b/test/test-hrpsysconf.py
+--------------------------
+No file to patch.  Skipping patch.
+2 out of 2 hunks ignored
+checking file rtm.py
+Hunk #1 FAILED at 538.
+1 out of 1 hunk FAILED
+can't find file to patch at input line 18
+Perhaps you used the wrong -p or --strip option?
+The text leading up to this was:
+--------------------------
+|diff --git a/test/test-hrpsysconf.py b/test/test-hrpsysconf.py
+|index a84e360..aa501e5 100755
+|--- a/test/test-hrpsysconf.py
+|+++ b/test/test-hrpsysconf.py
+--------------------------
+No file to patch.  Skipping patch.
+2 out of 2 hunks ignored
+[31mERROR: failed to patch[0m
